@@ -1,0 +1,68 @@
+# ====================================
+# Production Dependencies
+# ====================================
+# Last checked: 2024-11-24
+# Security note: Run `pip-audit` or `safety check` regularly
+
+# Telegram Bot Framework
+aiogram==3.21.0                    # Latest stable 3.x version
+
+# Environment & Configuration
+python-dotenv==1.0.1               # Environment variable management
+pydantic==2.7.1                    # Data validation
+pydantic_settings==2.2.1           # Settings management with Pydantic v2
+
+# HTTP & Web
+aiohttp==3.12.14                   # Async HTTP client/server
+
+# Payment Providers
+yookassa==3.5.0                    # YooKassa payment gateway
+aiocryptopay==0.4.8                # CryptoBot payment integration
+
+# Database
+sqlalchemy[asyncio]==2.0.29        # ORM with async support
+asyncpg==0.29.0                    # PostgreSQL async driver
+alembic==1.13.1                    # Database migrations
+
+# Redis
+redis==5.0.1                       # Redis client for FSM storage and caching
+
+# Utilities
+pycountry==23.12.11                # Country data for localization
+
+# ====================================
+# Development Dependencies
+# ====================================
+# Uncomment for development environment
+# See requirements-dev.txt for full development setup
+#
+# Testing:
+# pytest==8.0.0
+# pytest-asyncio==0.23.0
+# pytest-cov==4.1.0
+#
+# Code Quality:
+# black==24.0.0
+# flake8==7.0.0
+# mypy==1.8.0
+#
+# Security:
+# pip-audit==2.7.0
+# safety==3.0.0
+
+# ====================================
+# Version Update Notes
+# ====================================
+# When updating dependencies:
+# 1. Check CHANGELOG for breaking changes
+# 2. Test thoroughly in development first
+# 3. Update this file with date and reason
+# 
+# Known stable version ranges (as of 2024-11-24):
+# - aiogram: 3.21.x (stable)
+# - pydantic: 2.7.x - 2.9.x (breaking changes in 3.x)
+# - sqlalchemy: 2.0.x (breaking changes in 2.1.x)
+# - aiohttp: 3.12.x (3.x series stable)
+#
+# WARNING: Major version updates may contain breaking changes!
+# Always review migration guides before updating major versions.

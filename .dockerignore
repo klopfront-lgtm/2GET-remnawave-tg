@@ -1,0 +1,158 @@
+# ====================================
+# Git
+# ====================================
+.git
+.gitignore
+.github
+.gitattributes
+
+# ====================================
+# CI/CD
+# ====================================
+.codeclimate.yml
+.travis.yml
+.taskcluster.yml
+
+# ====================================
+# Docker
+# ====================================
+docker-compose*.yml
+Dockerfile
+.docker
+.dockerignore
+
+# ====================================
+# Documentation
+# ====================================
+*.md
+README.md
+LICENSE
+MIGRATION_GUIDE.md
+MULTIPLE_SUBSCRIPTIONS_DESIGN.md
+UPDATES_2024.md
+
+# ====================================
+# Python
+# ====================================
+# Byte-compiled / optimized / DLL files
+**/__pycache__/
+**/*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.cache
+nosetests.xml
+coverage.xml
+tests/
+.pytest_cache/
+.hypothesis/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# ====================================
+# Virtual Environments
+# ====================================
+.env*
+.venv/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ====================================
+# IDEs
+# ====================================
+# PyCharm
+.idea
+**/.idea/
+
+# VS Code
+.vscode/
+**/.vscode/
+
+# Python mode for VIM
+.ropeproject
+**/.ropeproject
+
+# Vim swap files
+**/*.swp
+**/*.swo
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ====================================
+# OS
+# ====================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# ====================================
+# Development & Testing
+# ====================================
+.mypy_cache/
+.dmypy.json
+dmyp.json
+.pyre/
+.pytype/
+
+# ====================================
+# Project Specific
+# ====================================
+.kilocode/

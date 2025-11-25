@@ -1,0 +1,65 @@
+services:
+  remnawave-tg-shop:
+    image: ghcr.io/machka-pasla/remnawave-tg-shop:latest
+#    build: .
+    container_name: remnawave-tg-shop
+    hostname: remnawave-tg-shop
+    env_file:
+      - .env
+    networks:
+      - remnawave-network
+    volumes:
+      - ./locales:/app/locales
+    restart: unless-stopped
+    depends_on:
+      remnawave-tg-shop-db:
+        condition: service_healthy
+    
+    # Health check for bot service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  remnawave-tg-shop-db:
+    image: postgres:17
+    container_name: remnawave-tg-shop-db
+    hostname: remnawave-tg-shop-db
+    env_file:
+      - .env
+    volumes:
+      - remnawave-tg-shop-db-data:/var/lib/postgresql/data
+    networks:
+      - remnawave-network
+    restart: unless-stopped
+    
+    # Health check for PostgreSQL
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  remnawave-network:
+    external: false
+
+volumes:
+  remnawave-tg-shop-db-data:
+    name: remnawave-tg-shop-db-data

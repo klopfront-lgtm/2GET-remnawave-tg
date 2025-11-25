@@ -1,0 +1,76 @@
+# ====================================
+# Development and Testing Dependencies
+# ====================================
+# This file contains development tools and testing frameworks
+# Install with: pip install -r requirements-dev.txt
+
+# Include all production dependencies
+-r requirements.txt
+
+# ====================================
+# Testing Frameworks
+# ====================================
+pytest==8.0.0                      # Testing framework
+pytest-asyncio==0.23.0             # Async support for pytest
+pytest-cov==4.1.0                  # Code coverage reports
+pytest-mock==3.12.0                # Mocking support for pytest
+
+# ====================================
+# Code Quality & Formatting
+# ====================================
+black==24.0.0                      # Code formatter
+flake8==7.0.0                      # Linter
+mypy==1.8.0                        # Static type checker
+pylint==3.0.0                      # Code analysis
+isort==5.13.0                      # Import sorting
+
+# ====================================
+# Security Auditing
+# ====================================
+pip-audit==2.7.0                   # Security vulnerability scanner
+safety==3.0.0                      # Dependency security checker
+bandit==1.7.6                      # Security issues scanner
+
+# ====================================
+# Development Tools
+# ====================================
+ipython==8.12.0                    # Enhanced Python shell
+ipdb==0.13.13                      # IPython debugger
+pre-commit==3.6.0                  # Git hooks manager
+
+# ====================================
+# Documentation
+# ====================================
+# sphinx==7.2.0                    # Documentation generator (uncomment if needed)
+# sphinx-rtd-theme==2.0.0          # ReadTheDocs theme (uncomment if needed)
+
+# ====================================
+# Usage Instructions
+# ====================================
+# Install development dependencies:
+#   pip install -r requirements-dev.txt
+#
+# Run tests:
+#   pytest
+#
+# Run tests with coverage:
+#   pytest --cov=bot --cov-report=html
+#
+# Format code:
+#   black .
+#
+# Sort imports:
+#   isort .
+#
+# Check code quality:
+#   flake8 bot/
+#   pylint bot/
+#   mypy bot/
+#
+# Security audit:
+#   pip-audit
+#   safety check
+#   bandit -r bot/
+#
+# Setup pre-commit hooks:
+#   pre-commit install

@@ -1,0 +1,858 @@
+from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, WebAppInfo
+from typing import Optional, List, Any
+import math
+
+from config.settings import Settings
+from bot.middlewares.i18n import JsonI18n
+from db.models import User
+
+
+def get_admin_panel_keyboard(i18n_instance, lang: str,
+                             settings: Settings) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    # Статистика и мониторинг
+    builder.button(text=_(key="admin_stats_and_monitoring_section"),
+                   callback_data="admin_section:stats_monitoring")
+    
+    # Управление пользователями
+    builder.button(text=_(key="admin_user_management_section"),
+                   callback_data="admin_section:user_management")
+    
+    # Тарифы и цены
+    builder.button(text=_(key="admin_tariffs_pricing_section", default="💰 Тарифы и цены"),
+                   callback_data="admin_section:tariffs_pricing")
+    
+    # Промокоды и маркетинг
+    builder.button(text=_(key="admin_promo_marketing_section"),
+                   callback_data="admin_section:promo_marketing")
+    
+    # Реклама
+    builder.button(text=_(key="admin_ads_section", default="📈 Реклама"),
+                   callback_data="admin_action:ads")
+
+    # Системные функции
+    builder.button(text=_(key="admin_system_functions_section"),
+                   callback_data="admin_section:system_functions")
+    
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_stats_monitoring_keyboard(i18n_instance, lang: str) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    builder.button(text=_(key="admin_stats_button"),
+                   callback_data="admin_action:stats")
+    builder.button(text=_(key="admin_view_payments_button", default="💰 Платежи"),
+                   callback_data="admin_action:view_payments")
+    builder.button(text=_(key="admin_view_logs_menu_button"),
+                   callback_data="admin_action:view_logs_menu")
+    
+    builder.button(text=_(key="back_to_admin_panel_button"),
+                   callback_data="admin_action:main")
+    builder.adjust(2, 1, 1)
+    return builder.as_markup()
+
+
+def get_user_management_keyboard(i18n_instance, lang: str) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    builder.button(text=_(key="admin_users_management_button"),
+                   callback_data="admin_action:users_list:0")
+    builder.button(text=_(key="admin_users_search_button"),
+                   callback_data="admin_action:users_search_prompt")
+    builder.button(text=_(key="admin_ban_management_section"),
+                   callback_data="admin_section:ban_management")
+    
+    builder.button(text=_(key="back_to_admin_panel_button"),
+                   callback_data="admin_action:main")
+    builder.adjust(2, 1, 1)
+    return builder.as_markup()
+
+
+def get_ban_management_keyboard(i18n_instance, lang: str) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    builder.button(text=_(key="admin_ban_user_button"),
+                   callback_data="admin_action:ban_user_prompt")
+    builder.button(text=_(key="admin_unban_user_button"),
+                   callback_data="admin_action:unban_user_prompt")
+    builder.button(text=_(key="admin_view_banned_users_button"),
+                   callback_data="admin_action:view_banned:0")
+    
+    builder.button(text=_(key="back_to_user_management_button"),
+                   callback_data="admin_section:user_management")
+    builder.adjust(2, 1, 1)
+    return builder.as_markup()
+
+
+def get_promo_marketing_keyboard(i18n_instance, lang: str) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    builder.button(text=_(key="admin_create_promo_button"),
+                   callback_data="admin_action:create_promo")
+    builder.button(text=_(key="admin_create_bulk_promo_button"),
+                   callback_data="admin_action:create_bulk_promo")
+    builder.button(text=_(key="admin_promo_management_button"),
+                   callback_data="admin_action:promo_management")
+    
+    builder.button(text=_(key="back_to_admin_panel_button"),
+                   callback_data="admin_action:main")
+    builder.adjust(2, 1, 1)
+    return builder.as_markup()
+
+
+def get_system_functions_keyboard(i18n_instance, lang: str) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    builder.button(text=_(key="admin_broadcast_button"),
+                   callback_data="admin_action:broadcast")
+    builder.button(text=_(key="admin_sync_panel_button"),
+                   callback_data="admin_action:sync_panel")
+    builder.button(text=_(key="admin_queue_status_button"),
+                   callback_data="admin_action:queue_status")
+    
+    builder.button(text=_(key="back_to_admin_panel_button"),
+                   callback_data="admin_action:main")
+    builder.adjust(2, 1, 1)
+    return builder.as_markup()
+
+
+def get_ads_menu_keyboard(i18n_instance, lang: str) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    builder.button(text=_(key="admin_ads_create_button", default="➕ Создать кампанию"),
+                   callback_data="admin_action:ads_create")
+    builder.button(text=_(key="back_to_admin_panel_button"),
+                   callback_data="admin_action:main")
+    builder.adjust(1, 1)
+    return builder.as_markup()
+
+
+def get_ads_list_keyboard(
+    i18n_instance,
+    lang: str,
+    campaigns: list,
+    current_page: int,
+    total_pages: int,
+) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+
+    for c in campaigns:
+        title = f"{c.source}"
+        builder.button(
+            text=title,
+            callback_data=f"admin_ads:card:{c.ad_campaign_id}:{current_page}",
+        )
+
+    # Pagination row (only when needed)
+    if total_pages > 1:
+        row = []
+        if current_page > 0:
+            row.append(
+                InlineKeyboardButton(
+                    text="⬅️ " + _("prev_page_button", default="Prev"),
+                    callback_data=f"admin_ads:page:{current_page - 1}",
+                )
+            )
+        row.append(
+            InlineKeyboardButton(
+                text=f"{current_page + 1}/{total_pages}",
+                callback_data="ads_page_display",
+            )
+        )
+        if current_page < total_pages - 1:
+            row.append(
+                InlineKeyboardButton(
+                    text=_("next_page_button", default="Next") + " ➡️",
+                    callback_data=f"admin_ads:page:{current_page + 1}",
+                )
+            )
+        if row:
+            builder.row(*row)
+
+    builder.button(text=_(key="admin_ads_create_button", default="➕ Создать кампанию"),
+                   callback_data="admin_action:ads_create")
+    builder.button(text=_(key="back_to_admin_panel_button"),
+                   callback_data="admin_action:main")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_ad_card_keyboard(i18n_instance, lang: str, campaign_id: int, back_page: int) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    # Dangerous action: Delete campaign
+    builder.button(text=_(key="admin_ads_delete_button", default="🗑 Удалить кампанию"),
+                   callback_data=f"admin_ads:delete:{campaign_id}:{back_page}")
+    builder.button(text=_(key="back_to_ads_list_button", default="⬅️ К списку"),
+                   callback_data=f"admin_ads:page:{back_page}")
+    builder.button(text=_(key="back_to_admin_panel_button"),
+                   callback_data="admin_action:main")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_logs_menu_keyboard(i18n_instance, lang: str) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    builder.button(text=_(key="admin_view_all_logs_button"),
+                   callback_data="admin_logs:view_all:0")
+    builder.button(text=_(key="admin_view_user_logs_prompt_button"),
+                   callback_data="admin_logs:prompt_user")
+    builder.button(text=_(key="admin_export_logs_csv_button"),
+                   callback_data="admin_logs:export_csv")
+    builder.row(
+        InlineKeyboardButton(text=_(key="back_to_admin_panel_button"),
+                             callback_data="admin_action:main"))
+    builder.adjust(2, 1, 1)
+    return builder.as_markup()
+
+
+def get_logs_pagination_keyboard(
+        current_page: int,
+        total_pages: int,
+        base_callback_data: str,
+        i18n_instance,
+        lang: str,
+        back_to_logs_menu: bool = False) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    row_buttons = []
+    if current_page > 0:
+        row_buttons.append(
+            InlineKeyboardButton(
+                text="⬅️ " + _("prev_page_button", default="Prev"),
+                callback_data=f"{base_callback_data}:{current_page - 1}"))
+    if current_page < total_pages - 1:
+        row_buttons.append(
+            InlineKeyboardButton(
+                text=_("next_page_button", default="Next") + " ➡️",
+                callback_data=f"{base_callback_data}:{current_page + 1}"))
+
+    if row_buttons: builder.row(*row_buttons)
+
+    if back_to_logs_menu:
+        builder.row(
+            InlineKeyboardButton(text=_(key="admin_logs_menu_title"),
+                                 callback_data="admin_action:view_logs_menu"))
+    else:
+        builder.row(
+            InlineKeyboardButton(text=_(key="back_to_admin_panel_button"),
+                                 callback_data="admin_action:main"))
+    return builder.as_markup()
+
+
+def get_banned_users_keyboard(banned_users: List[User], current_page: int,
+                              total_banned: int, i18n_instance: JsonI18n,
+                              lang: str,
+                              settings: Settings) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    page_size = settings.LOGS_PAGE_SIZE
+
+    if not banned_users and total_banned == 0:
+        pass
+
+    for user_row in banned_users:
+
+        user_display_parts = []
+        if user_row.first_name:
+            user_display_parts.append(user_row.first_name)
+        if user_row.username:
+            user_display_parts.append(f"(@{user_row.username})")
+        if not user_display_parts:
+            user_display_parts.append(f"ID: {user_row.user_id}")
+
+        user_display = " ".join(user_display_parts).strip()
+
+        button_text = _("admin_banned_user_button_text",
+                        user_display=user_display,
+                        user_id=user_row.user_id)
+        builder.row(
+            InlineKeyboardButton(
+                text=button_text,
+                callback_data=
+                f"admin_user_card:{user_row.user_id}:{current_page}"))
+
+    if total_banned > page_size:
+        total_pages = math.ceil(total_banned / page_size)
+        pagination_buttons = []
+        if current_page > 0:
+            pagination_buttons.append(
+                InlineKeyboardButton(
+                    text=_("prev_page_button"),
+                    callback_data=f"admin_action:view_banned:{current_page - 1}"
+                ))
+        pagination_buttons.append(
+            InlineKeyboardButton(text=f"{current_page + 1}/{total_pages}",
+                                 callback_data="stub_page_display"))
+        if current_page < total_pages - 1:
+            pagination_buttons.append(
+                InlineKeyboardButton(
+                    text=_("next_page_button"),
+                    callback_data=f"admin_action:view_banned:{current_page + 1}"
+                ))
+        if pagination_buttons:
+            builder.row(*pagination_buttons)
+
+    builder.row(
+        InlineKeyboardButton(text=_("back_to_admin_panel_button"),
+                             callback_data="admin_action:main"))
+    return builder.as_markup()
+
+
+def get_users_list_keyboard(users: List[User], current_page: int,
+                            total_users: int, i18n_instance, lang: str,
+                            page_size: int = 15) -> InlineKeyboardMarkup:
+    """Generate keyboard for paginated user list"""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    # Add user buttons
+    for user in users:
+        user_display_parts = []
+        if user.username:
+            user_display_parts.append(f"@{user.username}")
+        user_display_parts.append(f"ID: {user.user_id}")
+        if user.first_name:
+            user_display_parts.append(f"- {user.first_name}")
+        
+        button_text = " ".join(user_display_parts)
+        builder.row(
+            InlineKeyboardButton(
+                text=button_text,
+                callback_data=f"admin_user_card_from_list:{user.user_id}:{current_page}"
+            )
+        )
+    
+    # Pagination buttons
+    if total_users > page_size:
+        total_pages = math.ceil(total_users / page_size)
+        pagination_buttons = []
+        if current_page > 0:
+            pagination_buttons.append(
+                InlineKeyboardButton(
+                    text=_("prev_page_button"),
+                    callback_data=f"admin_action:users_list:{current_page - 1}"
+                )
+            )
+        pagination_buttons.append(
+            InlineKeyboardButton(
+                text=f"{current_page + 1}/{total_pages}",
+                callback_data="stub_page_display"
+            )
+        )
+        if current_page < total_pages - 1:
+            pagination_buttons.append(
+                InlineKeyboardButton(
+                    text=_("next_page_button"),
+                    callback_data=f"admin_action:users_list:{current_page + 1}"
+                )
+            )
+        if pagination_buttons:
+            builder.row(*pagination_buttons)
+    
+    # Back button
+    builder.row(
+        InlineKeyboardButton(
+            text=_("back_to_user_management_button"),
+            callback_data="admin_section:user_management"
+        )
+    )
+    
+    return builder.as_markup()
+
+
+def get_user_card_keyboard(user_id: int,
+                           is_banned: bool,
+                           i18n_instance,
+                           lang: str,
+                           banned_list_page: int = 0) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    if is_banned:
+        builder.button(
+            text=_(key="user_card_unban_button"),
+            callback_data=f"admin_unban_confirm:{user_id}:{banned_list_page}")
+    else:
+        builder.button(
+            text=_(key="user_card_ban_button"),
+            callback_data=f"admin_ban_confirm:{user_id}:{banned_list_page}")
+    builder.button(
+        text=_(
+            key="user_card_open_profile_button",
+            default="👤 Open profile"
+        ),
+        url=f"tg://user?id={user_id}"
+    )
+    builder.button(
+        text=_(key="user_card_back_to_banned_list_button"),
+        callback_data=f"admin_action:view_banned:{banned_list_page}")
+    builder.button(text=_(key="back_to_admin_panel_button"),
+                   callback_data="admin_action:main")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_confirmation_keyboard(yes_callback_data: str, no_callback_data: str,
+                              i18n_instance,
+                              lang: str) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    builder.button(text=_(key="yes_button"), callback_data=yes_callback_data)
+    builder.button(text=_(key="no_button"), callback_data=no_callback_data)
+    return builder.as_markup()
+
+
+def get_broadcast_confirmation_keyboard(lang: str,
+                                        i18n_instance,
+                                        target: str = "all") -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+
+    # Row: target selection (all / active / inactive)
+    target_all_label = _(
+        key="broadcast_target_all_button",
+        default="👥 Все"
+    )
+    target_active_label = _(
+        key="broadcast_target_active_button",
+        default="✅ Активные"
+    )
+    target_inactive_label = _(
+        key="broadcast_target_inactive_button",
+        default="⌛ Неактивные"
+    )
+
+    # Highlight current selection with a prefix
+    def mark_selected(label: str, is_selected: bool) -> str:
+        return ("• " + label) if is_selected else label
+
+    builder.button(
+        text=mark_selected(target_all_label, target == "all"),
+        callback_data="broadcast_target:all",
+    )
+    builder.button(
+        text=mark_selected(target_active_label, target == "active"),
+        callback_data="broadcast_target:active",
+    )
+    builder.button(
+        text=mark_selected(target_inactive_label, target == "inactive"),
+        callback_data="broadcast_target:inactive",
+    )
+    builder.adjust(3)
+
+    # Row: confirmation
+    builder.button(text=_(key="confirm_broadcast_send_button", default="🚀 Отправить"),
+                   callback_data="broadcast_final_action:send")
+    builder.button(text=_(key="cancel_broadcast_button", default="❌ Отмена"),
+                   callback_data="broadcast_final_action:cancel")
+    builder.adjust(2)
+    return builder.as_markup()
+
+
+def get_back_to_admin_panel_keyboard(lang: str,
+                                     i18n_instance) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    builder.button(text=_(key="back_to_admin_panel_button"),
+                   callback_data="admin_action:main")
+    return builder.as_markup()
+
+
+
+def get_tariffs_pricing_keyboard(i18n_instance, lang: str) -> InlineKeyboardMarkup:
+    """Клавиатура секции тарифов и цен"""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    builder.button(text=_(key="admin_tariff_management_button", default="📋 Управление тарифами"),
+                   callback_data="admin_action:tariff_management")
+    builder.button(text=_(key="admin_discount_management_button", default="🎁 Персональные скидки"),
+                   callback_data="admin_action:discount_management")
+    
+    builder.button(text=_(key="back_to_admin_panel_button"),
+                   callback_data="admin_action:main")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_tariff_management_keyboard(i18n_instance, lang: str) -> InlineKeyboardMarkup:
+    """Клавиатура управления тарифами"""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    builder.button(text=_(key="admin_tariffs_list_button", default="📋 Список тарифов"),
+                   callback_data="admin_action:tariffs_list:0")
+    builder.button(text=_(key="admin_create_tariff_button", default="➕ Создать тариф"),
+                   callback_data="admin_action:create_tariff")
+    
+    builder.button(text=_(key="back_to_tariffs_pricing_button", default="⬅️ К тарифам и ценам"),
+                   callback_data="admin_section:tariffs_pricing")
+    builder.adjust(2, 1)
+    return builder.as_markup()
+
+
+def get_tariffs_list_admin_keyboard(
+    tariffs: List[Any],
+    current_page: int,
+    total_tariffs: int,
+    i18n_instance,
+    lang: str,
+    page_size: int = 10
+) -> InlineKeyboardMarkup:
+    """Клавиатура списка тарифов с пагинацией"""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    # Кнопки тарифов
+    for tariff in tariffs:
+        status_emoji = "✅" if tariff.is_active else "❌"
+        default_emoji = "⭐" if tariff.is_default else ""
+        button_text = f"{status_emoji} {default_emoji} {tariff.name} - {tariff.price} {tariff.currency}"
+        builder.row(
+            InlineKeyboardButton(
+                text=button_text,
+                callback_data=f"admin_tariff:view:{tariff.id}:{current_page}"
+            )
+        )
+    
+    # Пагинация
+    if total_tariffs > page_size:
+        total_pages = math.ceil(total_tariffs / page_size)
+        pagination_buttons = []
+        if current_page > 0:
+            pagination_buttons.append(
+                InlineKeyboardButton(
+                    text=_("prev_page_button"),
+                    callback_data=f"admin_action:tariffs_list:{current_page - 1}"
+                )
+            )
+        pagination_buttons.append(
+            InlineKeyboardButton(
+                text=f"{current_page + 1}/{total_pages}",
+                callback_data="stub_page_display"
+            )
+        )
+        if current_page < total_pages - 1:
+            pagination_buttons.append(
+                InlineKeyboardButton(
+                    text=_("next_page_button"),
+                    callback_data=f"admin_action:tariffs_list:{current_page + 1}"
+                )
+            )
+        if pagination_buttons:
+            builder.row(*pagination_buttons)
+    
+    # Кнопка создания и возврата
+    builder.row(
+        InlineKeyboardButton(
+            text=_(key="admin_create_tariff_button", default="➕ Создать тариф"),
+            callback_data="admin_action:create_tariff"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text=_(key="back_to_tariff_management_button", default="⬅️ Управление тарифами"),
+            callback_data="admin_action:tariff_management"
+        )
+    )
+    
+    return builder.as_markup()
+
+
+def get_tariff_actions_keyboard(
+    tariff_id: int,
+    is_active: bool,
+    is_default: bool,
+    back_page: int,
+    i18n_instance,
+    lang: str
+) -> InlineKeyboardMarkup:
+    """Клавиатура действий для тарифа"""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    # Редактирование
+    builder.button(
+        text=_(key="admin_edit_tariff_button", default="✏️ Редактировать"),
+        callback_data=f"admin_tariff:edit:{tariff_id}:{back_page}"
+    )
+    
+    # Активация/деактивация
+    if is_active:
+        builder.button(
+            text=_(key="admin_deactivate_tariff_button", default="❌ Деактивировать"),
+            callback_data=f"admin_tariff:deactivate:{tariff_id}:{back_page}"
+        )
+    else:
+        builder.button(
+            text=_(key="admin_activate_tariff_button", default="✅ Активировать"),
+            callback_data=f"admin_tariff:activate:{tariff_id}:{back_page}"
+        )
+    
+    # Установка дефолтного
+    if not is_default:
+        builder.button(
+            text=_(key="admin_set_default_tariff_button", default="⭐ Сделать основным"),
+            callback_data=f"admin_tariff:set_default:{tariff_id}:{back_page}"
+        )
+    
+    # Удаление
+    builder.button(
+        text=_(key="admin_delete_tariff_button", default="🗑 Удалить"),
+        callback_data=f"admin_tariff:delete_confirm:{tariff_id}:{back_page}"
+    )
+    
+    # Назад
+    builder.button(
+        text=_(key="back_to_tariffs_list_button", default="⬅️ К списку тарифов"),
+        callback_data=f"admin_action:tariffs_list:{back_page}"
+    )
+    
+    builder.adjust(2, 1, 1, 1)
+    return builder.as_markup()
+
+
+def get_discount_management_keyboard(i18n_instance, lang: str) -> InlineKeyboardMarkup:
+    """Клавиатура управления скидками"""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    builder.button(text=_(key="admin_set_user_discount_button", default="➕ Установить скидку"),
+                   callback_data="admin_action:set_discount")
+    builder.button(text=_(key="admin_view_user_discounts_button", default="👁 Просмотр скидок"),
+                   callback_data="admin_action:view_discounts")
+    
+    builder.button(text=_(key="back_to_tariffs_pricing_button", default="⬅️ К тарифам и ценам"),
+                   callback_data="admin_section:tariffs_pricing")
+    builder.adjust(2, 1)
+    return builder.as_markup()
+
+
+def get_discount_tariff_selection_keyboard(
+    tariffs: List[Any],
+    i18n_instance,
+    lang: str
+) -> InlineKeyboardMarkup:
+    """Клавиатура выбора тарифа для скидки"""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    # Опция "Все тарифы"
+    builder.row(
+        InlineKeyboardButton(
+            text=_(key="admin_discount_all_tariffs", default="📦 Все тарифы"),
+            callback_data="admin_discount:tariff:all"
+        )
+    )
+    
+    # Кнопки для каждого тарифа
+    for tariff in tariffs:
+        builder.row(
+            InlineKeyboardButton(
+                text=f"{tariff.name} - {tariff.price} {tariff.currency}",
+                callback_data=f"admin_discount:tariff:{tariff.id}"
+            )
+        )
+    
+    # Отмена
+    builder.row(
+        InlineKeyboardButton(
+            text=_(key="cancel_button", default="❌ Отмена"),
+            callback_data="admin_action:discount_management"
+        )
+    )
+    
+    return builder.as_markup()
+
+
+def get_user_discounts_keyboard(
+    discounts: List[Any],
+    user_id: int,
+    i18n_instance,
+    lang: str
+) -> InlineKeyboardMarkup:
+    """Клавиатура отображения скидок пользователя"""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    # Кнопки для каждой скидки
+    for discount in discounts:
+        status = "✅" if discount.is_active else "❌"
+        tariff_info = f"Тариф {discount.tariff_id}" if discount.tariff_id else "Все тарифы"
+        button_text = f"{status} {discount.discount_percentage}% - {tariff_info}"
+        builder.row(
+            InlineKeyboardButton(
+                text=button_text,
+                callback_data=f"admin_discount:details:{discount.id}"
+            )
+        )
+    
+    # Назад
+    builder.row(
+        InlineKeyboardButton(
+            text=_(key="back_to_discount_management_button", default="⬅️ Управление скидками"),
+            callback_data="admin_action:discount_management"
+        )
+    )
+    
+    return builder.as_markup()
+
+
+def get_discount_actions_keyboard(
+    discount_id: int,
+    is_active: bool,
+    i18n_instance,
+    lang: str
+) -> InlineKeyboardMarkup:
+    """Клавиатура действий для скидки"""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    # Деактивация (если активна)
+    if is_active:
+        builder.button(
+            text=_(key="admin_deactivate_discount_button", default="❌ Деактивировать"),
+            callback_data=f"admin_discount:deactivate:{discount_id}"
+        )
+    
+    # Назад
+    builder.button(
+        text=_(key="back_button", default="⬅️ Назад"),
+        callback_data="admin_action:discount_management"
+    )
+    
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_promo_type_selection_keyboard(i18n_instance, lang: str) -> InlineKeyboardMarkup:
+    """Клавиатура выбора типа промокода"""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    builder.button(
+        text=_(key="promo_type_bonus_days", default="📅 Бонусные дни"),
+        callback_data="promo_type:bonus_days"
+    )
+    builder.button(
+        text=_(key="promo_type_percent", default="💯 Процентная скидка"),
+        callback_data="promo_type:percent"
+    )
+    builder.button(
+        text=_(key="promo_type_fixed_amount", default="💵 Фиксированная скидка"),
+        callback_data="promo_type:fixed_amount"
+    )
+    builder.button(
+        text=_(key="promo_type_balance", default="💰 Пополнение баланса"),
+        callback_data="promo_type:balance"
+    )
+    
+    builder.button(
+        text=_(key="back_to_admin_panel_button"),
+        callback_data="admin_action:main"
+    )
+    
+    builder.adjust(2, 2, 1)
+    return builder.as_markup()
+
+
+def get_promo_tariff_selection_keyboard(
+    tariffs: List[Any],
+    i18n_instance,
+    lang: str,
+    allow_all: bool = True
+) -> InlineKeyboardMarkup:
+    """Клавиатура выбора тарифов для промокода"""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    if allow_all:
+        # Опция "Все тарифы"
+        builder.row(
+            InlineKeyboardButton(
+                text=_(key="promo_all_tariffs", default="📦 Все тарифы"),
+                callback_data="promo_tariffs:all"
+            )
+        )
+    
+    # Кнопки для каждого активного тарифа
+    for tariff in tariffs:
+        builder.row(
+            InlineKeyboardButton(
+                text=f"{tariff.name} - {tariff.price} {tariff.currency}",
+                callback_data=f"promo_tariffs:select:{tariff.id}"
+            )
+        )
+    
+    # Пропустить (если разрешено)
+    if allow_all:
+        builder.row(
+            InlineKeyboardButton(
+                text=_(key="skip_button", default="⏭ Пропустить"),
+                callback_data="promo_tariffs:skip"
+            )
+        )
+    
+    # Отмена
+    builder.row(
+        InlineKeyboardButton(
+            text=_(key="cancel_button", default="❌ Отмена"),
+            callback_data="admin_action:main"
+        )
+    )
+    
+    return builder.as_markup()
+
+
+
+def get_subscription_edit_admin_keyboard(
+    subscription_id: int,
+    user_id: int
+) -> InlineKeyboardMarkup:
+    """Клавиатура редактирования подписки для админа"""
+    builder = InlineKeyboardBuilder()
+    
+    builder.row(
+        InlineKeyboardButton(
+            text="📊 Лимит трафика",
+            callback_data=f"admin_sub_set_traffic:{subscription_id}"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="📱 Лимит устройств",
+            callback_data=f"admin_sub_set_devices:{subscription_id}"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="✏️ Название",
+            callback_data=f"admin_sub_set_name:{subscription_id}"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="🗑 Удалить (admin)",
+            callback_data=f"admin_sub_delete:{subscription_id}"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="◀️ Назад",
+            callback_data=f"admin_user_subscriptions:{user_id}"
+        )
+    )
+    
+    return builder.as_markup()

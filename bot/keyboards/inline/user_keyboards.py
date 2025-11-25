@@ -1,0 +1,788 @@
+from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, WebAppInfo
+from typing import Dict, Optional, List, Tuple
+
+from config.settings import Settings
+
+
+def get_main_menu_inline_keyboard(
+        lang: str,
+        i18n_instance,
+        settings: Settings,
+        show_trial_button: bool = False) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+
+    if show_trial_button and settings.TRIAL_ENABLED:
+        builder.row(
+            InlineKeyboardButton(text=_(key="menu_activate_trial_button"),
+                                 callback_data="main_action:request_trial"))
+
+    builder.row(
+        InlineKeyboardButton(text=_(key="menu_subscribe_inline"),
+                             callback_data="main_action:subscribe"))
+    builder.row(
+        InlineKeyboardButton(
+            text=_(key="menu_my_subscription_inline"),
+            callback_data="main_action:my_subscription",
+        )
+    )
+    
+    # Кнопка профиля
+    builder.row(
+        InlineKeyboardButton(
+            text=_(key="menu_profile_button"),
+            callback_data="main_action:profile"
+        )
+    )
+
+    referral_button = InlineKeyboardButton(
+        text=_(key="menu_referral_inline"),
+        callback_data="main_action:referral")
+    promo_button = InlineKeyboardButton(
+        text=_(key="menu_apply_promo_button"),
+        callback_data="main_action:apply_promo")
+    builder.row(referral_button, promo_button)
+
+    language_button = InlineKeyboardButton(
+        text=_(key="menu_language_settings_inline"),
+        callback_data="main_action:language")
+    status_button_list = []
+    if settings.SERVER_STATUS_URL:
+        status_button_list.append(
+            InlineKeyboardButton(text=_(key="menu_server_status_button"),
+                                 url=settings.SERVER_STATUS_URL))
+
+    if status_button_list:
+        builder.row(language_button, *status_button_list)
+    else:
+        builder.row(language_button)
+
+    if settings.SUPPORT_LINK:
+        builder.row(
+            InlineKeyboardButton(text=_(key="menu_support_button"),
+                                 url=settings.SUPPORT_LINK))
+
+    if settings.TERMS_OF_SERVICE_URL:
+        builder.row(
+            InlineKeyboardButton(text=_(key="menu_terms_button"),
+                                 url=settings.TERMS_OF_SERVICE_URL))
+
+    return builder.as_markup()
+
+
+def get_language_selection_keyboard(i18n_instance,
+                                    current_lang: str) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(current_lang, key, **kwargs
+                                                    )
+    builder = InlineKeyboardBuilder()
+    builder.button(text=f"🇬🇧 English {'✅' if current_lang == 'en' else ''}",
+                   callback_data="set_lang_en")
+    builder.button(text=f"🇷🇺 Русский {'✅' if current_lang == 'ru' else ''}",
+                   callback_data="set_lang_ru")
+    builder.button(text=_(key="back_to_main_menu_button"),
+                   callback_data="main_action:back_to_main")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_trial_confirmation_keyboard(lang: str,
+                                    i18n_instance) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    builder.button(text=_(key="trial_confirm_activate_button"),
+                   callback_data="trial_action:confirm_activate")
+    builder.button(text=_(key="cancel_button"),
+                   callback_data="main_action:back_to_main")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_subscription_options_keyboard(subscription_options: Dict[
+    int, Optional[int]], currency_symbol_val: str, lang: str,
+                                      i18n_instance) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    if subscription_options:
+        for months, price in subscription_options.items():
+            if price is not None:
+                button_text = _("subscribe_for_months_button",
+                                months=months,
+                                price=price,
+                                currency_symbol=currency_symbol_val)
+                builder.button(text=button_text,
+                               callback_data=f"subscribe_period:{months}")
+        builder.adjust(1)
+    builder.row(
+        InlineKeyboardButton(text=_(key="back_to_main_menu_button"),
+                             callback_data="main_action:back_to_main"))
+    return builder.as_markup()
+
+
+def get_payment_method_keyboard(months: int, price: float,
+                                tribute_url: Optional[str],
+                                stars_price: Optional[int],
+                                currency_symbol_val: str, lang: str,
+                                i18n_instance, settings: Settings,
+                                user_balance: float = 0.0) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    # Если баланса достаточно - показать эту опцию первой
+    if user_balance >= price:
+        builder.button(
+            text=f"💰 {_('pay_from_balance')} ({user_balance:.2f} {currency_symbol_val})",
+            callback_data=f"pay_balance:{months}:{price}"
+        )
+    
+    if settings.FREEKASSA_ENABLED:
+        builder.button(text=_("pay_with_sbp_button"),
+                       callback_data=f"pay_fk:{months}:{price}")
+    if settings.YOOKASSA_ENABLED:
+        builder.button(text=_("pay_with_yookassa_button"),
+                       callback_data=f"pay_yk:{months}:{price}")
+    if settings.TRIBUTE_ENABLED and tribute_url:
+        builder.button(text=_("pay_with_tribute_button"), url=tribute_url)
+    if settings.STARS_ENABLED and stars_price is not None:
+        builder.button(text=_("pay_with_stars_button"),
+                       callback_data=f"pay_stars:{months}:{stars_price}")
+    if settings.CRYPTOPAY_ENABLED:
+        builder.button(text=_("pay_with_cryptopay_button"),
+                       callback_data=f"pay_crypto:{months}:{price}")
+    builder.button(text=_(key="cancel_button"),
+                   callback_data="main_action:subscribe")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_payment_url_keyboard(payment_url: str,
+                             lang: str,
+                             i18n_instance,
+                             back_callback: Optional[str] = None,
+                             back_text_key: str = "back_to_main_menu_button"
+                             ) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    builder.button(text=_(key="pay_button"), url=payment_url)
+    if back_callback:
+        builder.button(text=_(key=back_text_key), callback_data=back_callback)
+    else:
+        builder.button(text=_(key="back_to_main_menu_button"),
+                       callback_data="main_action:back_to_main")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_yk_autopay_choice_keyboard(
+    months: int,
+    price: float,
+    lang: str,
+    i18n_instance,
+    has_saved_cards: bool = True,
+) -> InlineKeyboardMarkup:
+    """Keyboard for choosing between saved card charge or new card payment when auto-renew is enabled."""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    price_str = str(price)
+    if has_saved_cards:
+        builder.row(
+            InlineKeyboardButton(
+                text=_(key="yookassa_autopay_pay_saved_card_button"),
+                callback_data=f"pay_yk_saved_list:{months}:{price_str}",
+            )
+        )
+    builder.row(
+        InlineKeyboardButton(
+            text=_(key="yookassa_autopay_pay_new_card_button"),
+            callback_data=f"pay_yk_new:{months}:{price_str}",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text=_(key="back_to_payment_methods_button"),
+            callback_data=f"subscribe_period:{months}",
+        )
+    )
+    return builder.as_markup()
+
+
+def get_yk_saved_cards_keyboard(
+    cards: List[Tuple[str, str]],
+    months: int,
+    price: float,
+    lang: str,
+    i18n_instance,
+    page: int = 0,
+) -> InlineKeyboardMarkup:
+    """Paginated keyboard for selecting a saved YooKassa card."""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    per_page = 5
+    total = len(cards)
+    start = page * per_page
+    end = min(total, start + per_page)
+    price_str = str(price)
+
+    for method_id, title in cards[start:end]:
+        builder.row(
+            InlineKeyboardButton(
+                text=title,
+                callback_data=f"pay_yk_use_saved:{months}:{price_str}:{method_id}",
+            )
+        )
+
+    nav_buttons: List[InlineKeyboardButton] = []
+    if start > 0:
+        nav_buttons.append(
+            InlineKeyboardButton(
+                text="⬅️",
+                callback_data=f"pay_yk_saved_list:{months}:{price_str}:{page-1}",
+            )
+        )
+    if end < total:
+        nav_buttons.append(
+            InlineKeyboardButton(
+                text="➡️",
+                callback_data=f"pay_yk_saved_list:{months}:{price_str}:{page+1}",
+            )
+        )
+    if nav_buttons:
+        builder.row(*nav_buttons)
+
+    builder.row(
+        InlineKeyboardButton(
+            text=_(key="yookassa_autopay_pay_new_card_button"),
+            callback_data=f"pay_yk_new:{months}:{price_str}",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text=_(key="back_to_autopay_method_choice_button"),
+            callback_data=f"pay_yk:{months}:{price_str}",
+        )
+    )
+    return builder.as_markup()
+
+
+def get_referral_link_keyboard(lang: str,
+                               i18n_instance) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    builder.button(text=_(key="referral_share_message_button"),
+                   callback_data="referral_action:share_message")
+    builder.button(text=_(key="back_to_main_menu_button"),
+                   callback_data="main_action:back_to_main")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_back_to_main_menu_markup(lang: str,
+                                 i18n_instance,
+                                 callback_data: Optional[str] = None) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    if callback_data:
+        builder.button(text=_(key="back_to_main_menu_button"),
+                       callback_data=callback_data)
+    else:
+        builder.button(text=_(key="back_to_main_menu_button"),
+                       callback_data="main_action:back_to_main")
+    return builder.as_markup()
+
+
+def get_subscribe_only_markup(lang: str, i18n_instance) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    builder.button(text=_(key="menu_subscribe_inline"),
+                   callback_data="main_action:subscribe")
+    return builder.as_markup()
+
+
+def get_user_banned_keyboard(support_link: Optional[str], lang: str,
+                             i18n_instance) -> Optional[InlineKeyboardMarkup]:
+    if not support_link:
+        return None
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    builder.button(text=_(key="menu_support_button"), url=support_link)
+    return builder.as_markup()
+
+
+def get_channel_subscription_keyboard(
+        lang: str,
+        i18n_instance,
+        channel_link: Optional[str],
+        include_check_button: bool = True) -> Optional[InlineKeyboardMarkup]:
+    """
+    Return keyboard with buttons to open the required channel and trigger a subscription re-check.
+    """
+    if i18n_instance is None:
+        return None
+
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+
+    has_buttons = False
+
+    if channel_link:
+        builder.button(
+            text=_(key="channel_subscription_join_button"),
+            url=channel_link,
+        )
+        has_buttons = True
+
+    if include_check_button:
+        builder.button(
+            text=_(key="channel_subscription_verify_button"),
+            callback_data="channel_subscription:verify",
+        )
+        has_buttons = True
+
+    if not has_buttons:
+        return None
+
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_connect_and_main_keyboard(
+        lang: str,
+        i18n_instance,
+        settings: Settings,
+        config_link: Optional[str],
+        preserve_message: bool = False) -> InlineKeyboardMarkup:
+    """Keyboard with a connect button and a back to main menu button."""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+
+    if settings.SUBSCRIPTION_MINI_APP_URL:
+        builder.row(
+            InlineKeyboardButton(
+                text=_("connect_button"),
+                web_app=WebAppInfo(url=settings.SUBSCRIPTION_MINI_APP_URL),
+            )
+        )
+    elif config_link:
+        builder.row(
+            InlineKeyboardButton(text=_("connect_button"), url=config_link)
+        )
+    else:
+        builder.row(
+            InlineKeyboardButton(
+                text=_("connect_button"),
+                callback_data="main_action:my_subscription",
+            )
+        )
+
+    back_callback = "main_action:back_to_main_keep" if preserve_message else "main_action:back_to_main"
+    builder.row(
+        InlineKeyboardButton(
+            text=_("back_to_main_menu_button"),
+            callback_data=back_callback,
+        )
+    )
+
+    return builder.as_markup()
+
+
+def get_payment_methods_manage_keyboard(lang: str, i18n_instance, has_card: bool) -> InlineKeyboardMarkup:
+    """Deprecated in favor of get_payment_methods_list_keyboard. Kept for backward compatibility."""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text=_(key="payment_method_bind_button"), callback_data="pm:bind")
+    )
+    builder.row(
+        InlineKeyboardButton(text=_(key="back_to_main_menu_button"), callback_data="main_action:back_to_main")
+    )
+    return builder.as_markup()
+
+
+def get_payment_methods_list_keyboard(
+    cards: List[Tuple[str, str]],
+    page: int,
+    lang: str,
+    i18n_instance,
+) -> InlineKeyboardMarkup:
+    """
+    Build a paginated list of saved payment methods.
+    cards: list of tuples (payment_method_id, display_title)
+    page: 0-based page index
+    """
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    per_page = 5
+    total = len(cards)
+    start = page * per_page
+    end = start + per_page
+    for pm_id, title in cards[start:end]:
+        builder.row(
+            InlineKeyboardButton(text=title, callback_data=f"pm:view:{pm_id}")
+        )
+
+    # Pagination controls if needed
+    nav_buttons: List[InlineKeyboardButton] = []
+    if start > 0:
+        nav_buttons.append(InlineKeyboardButton(text="⬅️", callback_data=f"pm:list:{page-1}"))
+    if end < total:
+        nav_buttons.append(InlineKeyboardButton(text="➡️", callback_data=f"pm:list:{page+1}"))
+    if nav_buttons:
+        builder.row(*nav_buttons)
+
+    # Bind new card and back
+    builder.row(InlineKeyboardButton(text=_(key="payment_method_bind_button"), callback_data="pm:bind"))
+    builder.row(InlineKeyboardButton(text=_(key="back_to_main_menu_button"), callback_data="main_action:back_to_main"))
+    return builder.as_markup()
+
+
+def get_payment_method_delete_confirm_keyboard(pm_id: str, lang: str, i18n_instance) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text=_(key="yes_button"), callback_data=f"pm:delete:{pm_id}"),
+        InlineKeyboardButton(text=_(key="cancel_button"), callback_data=f"pm:view:{pm_id}"),
+    )
+    return builder.as_markup()
+
+
+def get_payment_method_details_keyboard(pm_id: str, lang: str, i18n_instance) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text=_(key="payment_method_tx_history_title"), callback_data=f"pm:history:{pm_id}")
+    )
+    builder.row(
+        InlineKeyboardButton(text=_(key="payment_method_delete_button"), callback_data=f"pm:delete_confirm:{pm_id}")
+    )
+    builder.row(
+        InlineKeyboardButton(text=_(key="back_to_main_menu_button"), callback_data="pm:list:0")
+    )
+    return builder.as_markup()
+
+
+def get_bind_url_keyboard(bind_url: str, lang: str, i18n_instance) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    builder.button(text=_(key="payment_method_bind_button"), url=bind_url)
+    builder.button(text=_(key="back_to_main_menu_button"), callback_data="pm:manage")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_back_to_payment_methods_keyboard(lang: str, i18n_instance) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text=_(key="back_to_main_menu_button"), callback_data="pm:list:0"))
+    return builder.as_markup()
+
+
+def get_back_to_payment_method_details_keyboard(pm_id: str, lang: str, i18n_instance) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    # Back one step: return to specific payment method details
+    builder.row(InlineKeyboardButton(text=_(key="back_to_main_menu_button"), callback_data=f"pm:view:{pm_id}"))
+    return builder.as_markup()
+
+
+def get_autorenew_cancel_keyboard(lang: str, i18n_instance) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text=_(key="autorenew_disable_button"), callback_data="autorenew:cancel")
+    )
+    builder.row(
+        InlineKeyboardButton(text=_(key="menu_my_subscription_inline"), callback_data="main_action:my_subscription")
+    )
+    return builder.as_markup()
+
+
+def get_autorenew_confirm_keyboard(enable: bool, sub_id: int, lang: str, i18n_instance) -> InlineKeyboardMarkup:
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text=_(key="yes_button"), callback_data=f"autorenew:confirm:{sub_id}:{1 if enable else 0}"),
+        InlineKeyboardButton(text=_(key="no_button"), callback_data="main_action:my_subscription"),
+    )
+    return builder.as_markup()
+
+
+def get_profile_keyboard(lang: str, i18n_instance, settings: Settings) -> InlineKeyboardMarkup:
+    """Клавиатура основного меню профиля"""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    # Кнопка пополнения баланса
+    builder.row(
+        InlineKeyboardButton(
+            text=_("profile_top_up_balance_button"),
+            callback_data="profile_action:top_up_balance"
+        )
+    )
+    
+    # Кнопка "Мои подписки"
+    builder.row(
+        InlineKeyboardButton(
+            text="📦 Мои подписки",
+            callback_data="profile_action:my_subscriptions"
+        )
+    )
+    
+    # Кнопка истории операций
+    builder.row(
+        InlineKeyboardButton(
+            text=_("profile_balance_history_button"),
+            callback_data="profile_action:balance_history:0"
+        )
+    )
+    
+    # Кнопка назад
+    builder.row(
+        InlineKeyboardButton(
+            text=_("back_to_main_menu_button"),
+            callback_data="main_action:back_to_main"
+        )
+    )
+    
+    return builder.as_markup()
+
+
+def get_balance_history_keyboard(
+    lang: str,
+    i18n_instance,
+    page: int = 0,
+    total_pages: int = 1
+) -> InlineKeyboardMarkup:
+    """Клавиатура истории операций с пагинацией"""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    # Навигация по страницам
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(
+            InlineKeyboardButton(
+                text="⬅️ " + _("prev_page_button"),
+                callback_data=f"profile_action:balance_history:{page-1}"
+            )
+        )
+    if page < total_pages - 1:
+        nav_buttons.append(
+            InlineKeyboardButton(
+                text=_("next_page_button") + " ➡️",
+                callback_data=f"profile_action:balance_history:{page+1}"
+            )
+        )
+    
+    if nav_buttons:
+        builder.row(*nav_buttons)
+    
+    # Кнопка возврата к профилю
+    builder.row(
+        InlineKeyboardButton(
+            text=_("back_to_profile_button"),
+            callback_data="main_action:profile"
+        )
+    )
+    
+    return builder.as_markup()
+
+
+def get_balance_topup_amount_keyboard(lang: str, i18n_instance) -> InlineKeyboardMarkup:
+    """Клавиатура для выбора суммы пополнения баланса"""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    # Фиксированные суммы пополнения
+    amounts = [100, 500, 1000, 2000, 5000]
+    for amount in amounts:
+        builder.row(
+            InlineKeyboardButton(
+                text=f"💰 {amount} ₽",
+                callback_data=f"balance_topup:amount:{amount}"
+            )
+        )
+    
+    # Кнопка для ввода своей суммы
+    builder.row(
+        InlineKeyboardButton(
+            text=_("balance_topup_custom_amount_button"),
+            callback_data="balance_topup:custom_amount"
+        )
+    )
+    
+    # Кнопка отмены
+    builder.row(
+        InlineKeyboardButton(
+            text=_("cancel_button"),
+            callback_data="main_action:profile"
+        )
+    )
+    
+    return builder.as_markup()
+
+
+def get_balance_topup_payment_methods_keyboard(
+    amount: float,
+    lang: str,
+    i18n_instance,
+    settings: Settings
+) -> InlineKeyboardMarkup:
+    """Клавиатура для выбора метода оплаты пополнения баланса"""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    # Доступные методы оплаты
+    if settings.YOOKASSA_ENABLED:
+        builder.row(
+            InlineKeyboardButton(
+                text=_("pay_with_yookassa_button"),
+                callback_data=f"balance_topup:pay_yk:{amount}"
+            )
+        )
+    
+    if settings.FREEKASSA_ENABLED:
+        builder.row(
+            InlineKeyboardButton(
+                text=_("pay_with_sbp_button"),
+                callback_data=f"balance_topup:pay_fk:{amount}"
+            )
+        )
+    
+    if settings.STARS_ENABLED:
+        # Конвертируем рубли в Stars (примерный курс: 1 Star = ~1.7 RUB)
+        stars_amount = int(amount / 1.7)
+        builder.row(
+            InlineKeyboardButton(
+                text=_("pay_with_stars_button"),
+                callback_data=f"balance_topup:pay_stars:{amount}:{stars_amount}"
+            )
+        )
+    
+    if settings.CRYPTOPAY_ENABLED:
+        builder.row(
+            InlineKeyboardButton(
+                text=_("pay_with_cryptopay_button"),
+                callback_data=f"balance_topup:pay_crypto:{amount}"
+            )
+        )
+    
+    if settings.TRIBUTE_ENABLED:
+        builder.row(
+            InlineKeyboardButton(
+                text=_("pay_with_tribute_button"),
+                callback_data=f"balance_topup:pay_tribute:{amount}"
+            )
+        )
+    
+    # Кнопка назад
+    builder.row(
+        InlineKeyboardButton(
+            text=_("back_to_main_menu_button"),
+            callback_data="balance_topup:select_amount"
+        )
+    )
+    
+    return builder.as_markup()
+
+
+def get_tariffs_list_keyboard(
+    tariffs: list,
+    lang: str,
+    i18n_instance,
+) -> InlineKeyboardMarkup:
+    """Клавиатура со списком доступных тарифов"""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    for tariff in tariffs:
+        # Форматируем кнопку для тарифа
+        button_text = _("tariff_button",
+                       name=tariff.name,
+                       price=tariff.price,
+                       currency=tariff.currency,
+                       days=tariff.duration_days)
+        builder.row(
+            InlineKeyboardButton(
+                text=button_text,
+                callback_data=f"tariff:view:{tariff.id}"
+            )
+        )
+    
+    # Кнопка назад
+    builder.row(
+        InlineKeyboardButton(
+            text=_("back_to_main_menu_button"),
+            callback_data="main_action:back_to_main"
+        )
+    )
+    
+    return builder.as_markup()
+
+
+def get_tariff_detail_keyboard(
+    tariff_id: int,
+    price: float,
+    user_balance: float,
+    lang: str,
+    i18n_instance,
+) -> InlineKeyboardMarkup:
+    """Клавиатура для детальной страницы тарифа"""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    # Кнопка покупки
+    builder.row(
+        InlineKeyboardButton(
+            text=_("tariff_buy_button"),
+            callback_data=f"tariff:buy:{tariff_id}"
+        )
+    )
+    
+    # Кнопка назад к списку тарифов
+    builder.row(
+        InlineKeyboardButton(
+            text=_("back_to_tariffs_button"),
+            callback_data="main_action:subscribe"
+        )
+    )
+    
+    return builder.as_markup()
+
+
+def get_tariff_payment_options_keyboard(
+    tariff_id: int,
+    lang: str,
+    i18n_instance,
+    show_promo: bool = True,
+    has_promo: bool = False,
+) -> InlineKeyboardMarkup:
+    """Клавиатура с опциями оплаты тарифа"""
+    _ = lambda key, **kwargs: i18n_instance.gettext(lang, key, **kwargs)
+    builder = InlineKeyboardBuilder()
+    
+    # Кнопка применения промокода (если еще не применен)
+    if show_promo and not has_promo:
+        builder.row(
+            InlineKeyboardButton(
+                text=_("tariff_apply_promo_button"),
+                callback_data=f"tariff:apply_promo:{tariff_id}"
+            )
+        )
+    
+    # Кнопка продолжить к оплате
+    builder.row(
+        InlineKeyboardButton(
+            text=_("tariff_continue_to_payment_button"),
+            callback_data=f"tariff:pay:{tariff_id}"
+        )
+    )
+    
+    # Кнопка назад
+    builder.row(
+        InlineKeyboardButton(
+            text=_("back_to_tariff_button"),
+            callback_data=f"tariff:view:{tariff_id}"
+        )
+    )
+    
+    return builder.as_markup()
